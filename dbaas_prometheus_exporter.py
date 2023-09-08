@@ -14,7 +14,7 @@ api_key = os.environ.get('exoscale_key')
 api_secret = os.environ.get('exoscale_secret')
 
 # Check if the environment variables are set
-if api_key is None or api_secret is None:
+if api_key is None or api_secret is None or api_key == "" or api_secret == "":
     print("Error: Please set the 'exoscale_key' and 'exoscale_secret' environment variables.")
     exit(1)
 
