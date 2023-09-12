@@ -4,41 +4,49 @@ import time
 import hashlib
 import hmac
 import os
+import logging
 from base64 import standard_b64encode
 from prometheus_client import start_http_server, Gauge
 from requests.auth import AuthBase
 from urllib.parse import parse_qs, urlparse
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 # Set your API keys and secrets as environment variables
 api_key = os.environ.get('exoscale_key')
 api_secret = os.environ.get('exoscale_secret')
 
-# Check if the environment variables are set
-if api_key is None or api_secret is None or api_key == "" or api_secret == "":
-    print("Error: Please set the 'exoscale_key' and 'exoscale_secret' environment variables.")
-    exit(1)
-
 #database name to scrape
 database_names_str = os.environ.get('database_names')
-database_names = database_names_str.split(',')
 
-if database_names is None:
-    print("Error: Please set the 'database_names' environment variables.")
+# Check if the environment variables are set
+if api_key is None or api_secret is None or api_key == "" or api_secret == "":
+    logger.error("Error: Please set the 'exoscale_key' and 'exoscale_secret' environment variables.")
     exit(1)
 
+if database_names_str is None or database_names_str == "":
+    logger.error("Error: Please set the 'database_names' environment variables.")
+    exit(1)
+
+#split database names
+database_names = database_names_str.split(',')
+
 # Define Prometheus gauge metrics for each metric with a 'database' label
-disk_usage = Gauge('disk_usage', 'Disk space usage percentage', ['database'])
-load_average = Gauge('load_average', 'Load average (5 min)', ['database'])
-mem_usage = Gauge('memory_usage', 'Memory usage percentage', ['database'])
-diskio_writes = Gauge('disk_io_writes', 'Disk IOPS (writes)', ['database'])
-mem_available = Gauge('memory_available', 'Memory available percentage', ['database'])
-cpu_usage = Gauge('cpu_usage', 'CPU usage percentage', ['database'])
-diskio_reads = Gauge('disk_io_reads', 'Disk IOPS (reads)', ['database'])
-net_send = Gauge('network_transmit_bytes_per_sec', 'Network transmit (bytes/s)', ['database'])
-net_receive = Gauge('network_receive_bytes_per_sec', 'Network receive (bytes/s)', ['database'])
+dbaas_disk_usage = Gauge('dbaas_disk_usage', 'Disk space usage percentage', ['database'])
+dbaas_load_average = Gauge('dbaas_load_average', 'Load average (5 min)', ['database'])
+dbaas_mem_usage = Gauge('dbaas_memory_usage', 'Memory usage percentage', ['database'])
+dbaas_diskio_writes = Gauge('dbaas_disk_io_writes', 'Disk IOPS (writes)', ['database'])
+dbaas_mem_available = Gauge('dbaas_memory_available', 'Memory available percentage', ['database'])
+dbaas_cpu_usage = Gauge('dbaas_cpu_usage', 'CPU usage percentage', ['database'])
+dbaas_diskio_reads = Gauge('dbaas_disk_io_reads', 'Disk IOPS (reads)', ['database'])
+dbaas_net_send = Gauge('dbaas_network_transmit_bytes_per_sec', 'Network transmit (bytes/s)', ['database'])
+dbaas_net_receive = Gauge('dbaas_network_receive_bytes_per_sec', 'Network receive (bytes/s)', ['database'])
 
 # Exoscale API endpoint for metrics
 exoscale_api_base_url = "https://api-de-muc-1.exoscale.com/v2/dbaas-service-metrics/"
+
 
 class ExoscaleV2Auth(AuthBase):
     def __init__(self, key, secret):
@@ -97,9 +105,6 @@ class ExoscaleV2Auth(AuthBase):
 
         request.headers['Authorization'] = auth_header
 
-# Your Exoscale API key and secret
-
-
 # Create an authentication object
 auth = ExoscaleV2Auth(api_key, api_secret)
 
@@ -133,21 +138,23 @@ def fetch_metrics(database_names):
                     latest_net_receive = metrics_data['metrics']['net_receive']['data']['rows'][-1][1]
 
                     # Set the Prometheus metrics with the latest values
-                    disk_usage.labels(database=database_name).set(latest_disk_usage)
-                    load_average.labels(database=database_name).set(latest_load_average)
-                    mem_usage.labels(database=database_name).set(latest_mem_usage)
-                    diskio_writes.labels(database=database_name).set(latest_diskio_writes)
-                    mem_available.labels(database=database_name).set(latest_mem_available)
-                    cpu_usage.labels(database=database_name).set(latest_cpu_usage)
-                    diskio_reads.labels(database=database_name).set(latest_diskio_reads)
-                    net_send.labels(database=database_name).set(latest_net_send)
-                    net_receive.labels(database=database_name).set(latest_net_receive)
+                    dbaas_disk_usage.labels(database=database_name).set(latest_disk_usage)
+                    dbaas_load_average.labels(database=database_name).set(latest_load_average)
+                    dbaas_mem_usage.labels(database=database_name).set(latest_mem_usage)
+                    dbaas_diskio_writes.labels(database=database_name).set(latest_diskio_writes)
+                    dbaas_mem_available.labels(database=database_name).set(latest_mem_available)
+                    dbaas_cpu_usage.labels(database=database_name).set(latest_cpu_usage)
+                    dbaas_diskio_reads.labels(database=database_name).set(latest_diskio_reads)
+                    dbaas_net_send.labels(database=database_name).set(latest_net_send)
+                    dbaas_net_receive.labels(database=database_name).set(latest_net_receive)
+
+                    logger.info(f"Info: Metrics for {database_name} has been scraped")
 
                 else:
-                    print(f"Failed to fetch metrics for {database_name}. Status code: {response.status_code}")
+                    logger.error(f"Error: Failed to fetch metrics for {database_name}. Status code: {response.status_code}")
 
         except Exception as e:
-            print(f"An error occurred for {database_name}: {str(e)}")
+            logger.error(f"Error: An error occurred for {database_name}: {str(e)}")
 
         # Sleep for some time before fetching metrics again
         time.sleep(30)
