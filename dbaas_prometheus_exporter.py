@@ -39,9 +39,9 @@ logger.info(f"Info: Zone is set to {database_zone}.")
 ALLOWED_PERIODS = {'hour', 'week', 'year', 'month', 'day'}
 DEFAULT_PERIOD = 'hour'
 if metrics_period is None or metrics_period == "":
-    metrics_period = 'hour'
+    metrics_period = DEFAULT_PERIOD
 if metrics_period not in ALLOWED_PERIODS:
-    metrics_period = 'hour'
+    metrics_period = DEFAULT_PERIOD
     logger.warning(f"Warning: the 'metrics_period' environment variable is not one of {ALLOWED_PERIODS}, defaulting to '{DEFAULT_PERIOD}'.")
 logger.info(f"Info: Period is set to {metrics_period}.")
 
