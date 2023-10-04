@@ -1,14 +1,8 @@
-import json
-import requests
 import time
-import hashlib
-import hmac
 import os
 import logging
-from base64 import standard_b64encode
+from exoscale.api.v2 import Client
 from prometheus_client import start_http_server, Gauge
-from requests.auth import AuthBase
-from urllib.parse import parse_qs, urlparse
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -21,6 +15,12 @@ api_secret = os.environ.get('exoscale_secret')
 #database name to scrape
 database_names_str = os.environ.get('database_names')
 
+# Zone the database lives in
+database_zone = os.environ.get('database_zone')
+
+# Period parameter for the request
+metrics_period = os.environ.get('metrics_period')
+
 # Check if the environment variables are set
 if api_key is None or api_secret is None or api_key == "" or api_secret == "":
     logger.error("Error: Please set the 'exoscale_key' and 'exoscale_secret' environment variables.")
@@ -29,6 +29,21 @@ if api_key is None or api_secret is None or api_key == "" or api_secret == "":
 if database_names_str is None or database_names_str == "":
     logger.error("Error: Please set the 'database_names' environment variables.")
     exit(1)
+
+# Explicit Zone declaration, reporting the Client defaults
+if database_zone is None or database_zone == "":
+    database_zone = 'ch-gva-2'
+logger.info(f"Info: Zone is set to {database_zone}.")
+
+# Set period
+ALLOWED_PERIODS = {'hour', 'week', 'year', 'month', 'day'}
+DEFAULT_PERIOD = 'hour'
+if metrics_period is None or metrics_period == "":
+    metrics_period = 'hour'
+if metrics_period not in ALLOWED_PERIODS:
+    metrics_period = 'hour'
+    logger.warning(f"Warning: the 'metrics_period' environment variable is not one of {ALLOWED_PERIODS}, defaulting to '{DEFAULT_PERIOD}'.")
+logger.info(f"Info: Period is set to {metrics_period}.")
 
 #split database names
 database_names = database_names_str.split(',')
@@ -44,98 +59,33 @@ dbaas_diskio_reads = Gauge('dbaas_disk_io_reads', 'Disk IOPS (reads)', ['databas
 dbaas_net_send = Gauge('dbaas_network_transmit_bytes_per_sec', 'Network transmit (bytes/s)', ['database'])
 dbaas_net_receive = Gauge('dbaas_network_receive_bytes_per_sec', 'Network receive (bytes/s)', ['database'])
 
-# Exoscale API endpoint for metrics
-exoscale_api_base_url = "https://api-de-muc-1.exoscale.com/v2/dbaas-service-metrics/"
-
-
-class ExoscaleV2Auth(AuthBase):
-    def __init__(self, key, secret):
-        self.key = key
-        self.secret = secret.encode('utf-8')
-
-    def __call__(self, request):
-        expiration_ts = int(time.time() + 10 * 60)
-        self._sign_request(request, expiration_ts)
-        return request
-
-    def _sign_request(self, request, expiration_ts):
-        auth_header = 'EXO2-HMAC-SHA256 credential={}'.format(self.key)
-        msg_parts = []
-
-        # Request method/URL path
-        msg_parts.append('{method} {path}'.format(
-            method=request.method, path=urlparse(request.url).path
-        ).encode('utf-8'))
-
-        # Request body
-        msg_parts.append(request.body if request.body else b'')
-
-        # Request query string parameters
-        # Important: this is order-sensitive, we have to have to sort
-        # parameters alphabetically to ensure signed # values match the
-        # names listed in the 'signed-query-args=' signature pragma.
-        params = parse_qs(urlparse(request.url).query)
-        signed_params = sorted(params)
-        params_values = []
-        for p in signed_params:
-            if len(params[p]) != 1:
-                continue
-            params_values.append(params[p][0])
-        msg_parts.append(''.join(params_values).encode('utf-8'))
-        if signed_params:
-            auth_header += ',signed-query-args={}'.format(';'.join(signed_params))
-
-        # Request headers -- none at the moment
-        # Note: the same order-sensitive caution for query string parameters
-        # applies to headers.
-        msg_parts.append(b'')
-
-        # Request expiration date (UNIX timestamp)
-        msg_parts.append(str(expiration_ts).encode('utf-8'))
-        auth_header += ',expires=' + str(expiration_ts)
-
-        msg = b'\n'.join(msg_parts)
-        signature = hmac.new(
-            self.secret, msg=msg, digestmod=hashlib.sha256
-        ).digest()
-
-        auth_header += ',signature=' + str(
-            standard_b64encode(bytes(signature)), 'utf-8'
-        )
-
-        request.headers['Authorization'] = auth_header
 
 # Create an authentication object
-auth = ExoscaleV2Auth(api_key, api_secret)
-
-# Request body
-request_body = {"period": "hour"}
-
+exo = Client(api_key, api_secret, zone=database_zone)
 
 
 def fetch_metrics(database_names):
     while True:
         try:
             for database_name in database_names:
-                # Construct the API URL for the specific database
-                exoscale_api_url = exoscale_api_base_url + database_name
+                response = exo.get_dbaas_service_metrics(
+                    service_name=database_name,
+                    period=metrics_period
+                )
 
-                # Make an HTTP POST request to the Exoscale API to retrieve metrics
-                response = requests.post(exoscale_api_url, json=request_body, headers={"Content-Type": "application/json"}, auth=auth)
-
-                if response.status_code == 200:
-                    metrics_data = response.json()
+                if 'metrics' in response:
+                    metrics = response['metrics']
 
                     # Extract the latest metric data for each metric
-                    latest_disk_usage = metrics_data['metrics']['disk_usage']['data']['rows'][-1][1]
-                    latest_load_average = metrics_data['metrics']['load_average']['data']['rows'][-1][1]
-                    latest_mem_usage = metrics_data['metrics']['mem_usage']['data']['rows'][-1][1]
-                    latest_diskio_writes = metrics_data['metrics']['diskio_writes']['data']['rows'][-1][1]
-                    latest_mem_available = metrics_data['metrics']['mem_available']['data']['rows'][-1][1]
-                    latest_cpu_usage = metrics_data['metrics']['cpu_usage']['data']['rows'][-1][1]
-                    latest_diskio_reads = metrics_data['metrics']['diskio_read']['data']['rows'][-1][1]
-                    latest_net_send = metrics_data['metrics']['net_send']['data']['rows'][-1][1]
-                    latest_net_receive = metrics_data['metrics']['net_receive']['data']['rows'][-1][1]
+                    latest_disk_usage = metrics['disk_usage']['data']['rows'][-1][1]
+                    latest_load_average = metrics['load_average']['data']['rows'][-1][1]
+                    latest_mem_usage = metrics['mem_usage']['data']['rows'][-1][1]
+                    latest_diskio_writes = metrics['diskio_writes']['data']['rows'][-1][1]
+                    latest_mem_available = metrics['mem_available']['data']['rows'][-1][1]
+                    latest_cpu_usage = metrics['cpu_usage']['data']['rows'][-1][1]
+                    latest_diskio_reads = metrics['diskio_read']['data']['rows'][-1][1]
+                    latest_net_send = metrics['net_send']['data']['rows'][-1][1]
+                    latest_net_receive = metrics['net_receive']['data']['rows'][-1][1]
 
                     # Set the Prometheus metrics with the latest values
                     dbaas_disk_usage.labels(database=database_name).set(latest_disk_usage)
@@ -150,8 +100,11 @@ def fetch_metrics(database_names):
 
                     logger.info(f"Info: Metrics for {database_name} has been scraped")
 
+                elif 'message' in response:
+                    logger.error(f"Error: Failed to fetch metrics for {database_name}: {response['message']}")
+
                 else:
-                    logger.error(f"Error: Failed to fetch metrics for {database_name}. Status code: {response.status_code}")
+                    logger.error(f"Error: Failed to fetch metrics for {database_name}: unknown error")
 
         except Exception as e:
             logger.error(f"Error: An error occurred for {database_name}: {str(e)}")
@@ -165,4 +118,3 @@ if __name__ == '__main__':
 
     # Fetch and update metrics
     fetch_metrics(database_names)
-
