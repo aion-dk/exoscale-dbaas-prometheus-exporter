@@ -16,11 +16,11 @@ docker run -e exoscale_key=<YOUR_API_KEY> -e exoscale_secret=<YOUR_API_SECRET> -
 ```
 Replace the following placeholders:
 * <YOUR_API_KEY> and <YOUR_API_SECRET> with your Exoscale API key and secret.
-* <DATABASE_NAMES> with a comma-separated list of the database names you want to monitor.
 
 The following parameters are optional:
-<DATABASE_ZONE>: Set this if you want to specify the Exoscale zone where your databases are located (e.g., 'de-muc-1'). If not specified, it defaults to 'ch-gva-2'.
-<METRICS_PERIOD>: Set this if you want to specify the period for metric collection (e.g., 'hour', 'day', 'week', 'month', 'year'). If not specified, it defaults to 'hour'.
+* <DATABASE_ZONE>: Set this if you want to specify the Exoscale zone where your databases are located (e.g., 'de-muc-1'). If not specified, it defaults to 'ch-gva-2'.
+* <METRICS_PERIOD>: Set this if you want to specify the period for metric collection (e.g., 'hour', 'day', 'week', 'month', 'year'). If not specified, it defaults to 'hour'.
+* <DATABASE_NAMES> with a comma-separated list of the database names you want to monitor. If not specified, it defaults to all databases in the zone
 
 The exporter will start and expose Prometheus metrics on port 8080. You can configure your Prometheus server to scrape metrics from this exporter.
 
