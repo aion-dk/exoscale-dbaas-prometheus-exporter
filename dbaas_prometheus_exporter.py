@@ -62,10 +62,14 @@ def get_database_names():
     else:
         # Get list of databases
         data = exo.list_dbaas_services()
-        # Extract the names using a list comprehension
-        db_names = [db.get('name') for db in data.get('dbaas-services', [])]
-        logger.debug(f"DEBUG: Retrieved dynamic database list: {db_names}")
-        return db_names
+        if 'dbaas-services' in data:
+            # Extract the names using a list comprehension
+            db_names = [db.get('name') for db in data['dbaas-services']]
+            logger.debug(f"DEBUG: Retrieved dynamic database list: {db_names}")
+            return db_names
+        else:
+            logger.error(f"ERROR: Unexpected response format from Exoscale API: {data}")
+            return []
 
 def fetch_metrics():
     while True:
