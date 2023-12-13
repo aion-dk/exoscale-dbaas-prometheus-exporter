@@ -31,15 +31,15 @@ metrics_period = os.environ.get('metrics_period', 'hour')
 
 # Check if the environment variables are set
 if api_key is None or api_secret is None or api_key == "" or api_secret == "":
-    logger.error("Error: Please set the 'exoscale_key' and 'exoscale_secret' environment variables.")
+    logger.error("Please set the 'exoscale_key' and 'exoscale_secret' environment variables.")
     exit(1)
 
 # Create an authentication object
 exo = Client(api_key, api_secret, zone=database_zone)
 
 
-logger.info(f"Info: Zone is set to {database_zone}.")
-logger.info(f"Info: Period is set to {metrics_period}.")
+logger.info(f"Zone is set to {database_zone}.")
+logger.info(f"Period is set to {metrics_period}.")
 
 # Define Prometheus gauge metrics for each metric with a 'database' label
 dbaas_metrics = {
@@ -57,7 +57,7 @@ dbaas_metrics = {
 def get_database_names():
     # If static database names are provided as an environment variable
     if database_names_str and database_names_str.strip():
-        logger.debug(f"DEBUG: databases: database_names_str.split(',')")
+        logger.debug(f"databases: database_names_str.split(',')")
         return database_names_str.split(',')
     else:
         # Get list of databases
@@ -65,10 +65,10 @@ def get_database_names():
         if 'dbaas-services' in data:
             # Extract the names using a list comprehension
             db_names = [db.get('name') for db in data['dbaas-services']]
-            logger.debug(f"DEBUG: Retrieved dynamic database list: {db_names}")
+            logger.debug(f"Retrieved dynamic database list: {db_names}")
             return db_names
         else:
-            logger.error(f"ERROR: Unexpected response format from Exoscale API: {data}")
+            logger.error(f"Unexpected response format from Exoscale API: {data}")
             return []
 
 def fetch_metrics():
@@ -90,16 +90,16 @@ def fetch_metrics():
                         latest_value = metrics[metric_name]['data']['rows'][-1][1]
                         metric_gauge.labels(database=database_name).set(latest_value)
 
-                    logger.info(f"Info: Metrics for {database_name} have been scraped")
+                    logger.info(f"Metrics for {database_name} have been scraped")
 
                 elif 'message' in response:
-                    logger.error(f"Error: Failed to fetch metrics for {database_name}: {response['message']}")
+                    logger.error(f"Failed to fetch metrics for {database_name}: {response['message']}")
 
                 else:
-                    logger.error(f"Error: Failed to fetch metrics for {database_name}: unknown error")
+                    logger.error(f"Failed to fetch metrics for {database_name}: unknown error")
 
         except Exception as e:
-            logger.error(f"Error: An error occurred: {str(e)}")
+            logger.error(f"An error occurred: {str(e)}")
 
         # Sleep for some time before fetching metrics again
         time.sleep(SLEEP_INTERVAL)
