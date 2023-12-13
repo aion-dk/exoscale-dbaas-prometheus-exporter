@@ -20,7 +20,8 @@ Replace the following placeholders:
 The following parameters are optional:
 * <DATABASE_ZONE>: Set this if you want to specify the Exoscale zone where your databases are located (e.g., 'de-muc-1'). If not specified, it defaults to 'ch-gva-2'.
 * <METRICS_PERIOD>: Set this if you want to specify the period for metric collection (e.g., 'hour', 'day', 'week', 'month', 'year'). If not specified, it defaults to 'hour'.
-* <DATABASE_NAMES> with a comma-separated list of the database names you want to monitor. If not specified, it defaults to all databases in the zone
+* <DATABASE_NAMES> with a comma-separated list of the database names you want to monitor. If not specified, it defaults to all databases in the zone.
+* <LOG_LEVEL> Set this if you want to specify the LOG_LEVEL. If not specified it defaults to INFO.
 
 The exporter will start and expose Prometheus metrics on port 8080. You can configure your Prometheus server to scrape metrics from this exporter.
 

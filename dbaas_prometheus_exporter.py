@@ -9,8 +9,11 @@ from prometheus_client import start_http_server, Gauge
 # Constants
 SLEEP_INTERVAL = 30
 
+# Get the log level from the environment variable (default to ERROR if not set)
+log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
+
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Set your API keys and secrets as environment variables
@@ -52,13 +55,17 @@ dbaas_metrics = {
 }
 
 def get_database_names():
-    if database_names_str is not None and database_names_str != "":
+    # If static database names are provided as an environment variable
+    if database_names_str and database_names_str.strip():
+        logger.debug(f"DEBUG: databases: database_names_str.split(',')")
         return database_names_str.split(',')
     else:
         # Get list of databases
         data = exo.list_dbaas_services()
         # Extract the names using a list comprehension
-        return [db.get('name') for db in data.get('dbaas-services', [])]
+        db_names = [db.get('name') for db in data.get('dbaas-services', [])]
+        logger.debug(f"DEBUG: Retrieved dynamic database list: {db_names}")
+        return db_names
 
 def fetch_metrics():
     while True:
