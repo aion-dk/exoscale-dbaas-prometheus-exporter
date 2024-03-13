@@ -18,7 +18,7 @@ Replace the following placeholders:
 * <YOUR_API_KEY> and <YOUR_API_SECRET> with your Exoscale API key and secret.
 
 The following parameters are optional:
-* <DATABASE_ZONE>: Set this if you want to specify the Exoscale zone where your databases are located (e.g., 'de-muc-1'). If not specified, it defaults to 'ch-gva-2'.
+* <DATABASE_ZONE>: Set this if you want to specify the Exoscale zone where your databases are located (e.g., 'de-muc-1'). If not specified, it will get metrics form all zones.
 * <METRICS_PERIOD>: Set this if you want to specify the period for metric collection (e.g., 'hour', 'day', 'week', 'month', 'year'). If not specified, it defaults to 'hour'.
 * <DATABASE_NAMES> with a comma-separated list of the database names you want to monitor. If not specified, it defaults to all databases in the zone.
 * <LOG_LEVEL> Set this if you want to specify the LOG_LEVEL. If not specified it defaults to INFO.
