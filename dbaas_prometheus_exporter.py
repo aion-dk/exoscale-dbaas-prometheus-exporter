@@ -23,8 +23,7 @@ api_secret = os.environ.get('exoscale_secret')
 # Database name to scrape
 database_names_str = os.environ.get('database_names')
 
-# Zone the database lives in
-database_zone = os.environ.get('database_zone', 'ch-gva-2')
+database_zone = os.environ.get('database_zone')
 
 # Period parameter for the request
 metrics_period = os.environ.get('metrics_period', 'hour')
@@ -34,11 +33,13 @@ if api_key is None or api_secret is None or api_key == "" or api_secret == "":
     logger.error("Please set the 'exoscale_key' and 'exoscale_secret' environment variables.")
     exit(1)
 
+#output if no zone is specified
+if not database_zone:
+    logger.info("No specific zone provided. Using all available zones.")
+
 # Create an authentication object
-exo = Client(api_key, api_secret, zone=database_zone)
+exo = Client(api_key, api_secret)
 
-
-logger.info(f"Zone is set to {database_zone}.")
 logger.info(f"Period is set to {metrics_period}.")
 
 # Define Prometheus gauge metrics for each metric with a 'database' label
@@ -57,19 +58,45 @@ dbaas_metrics = {
 def get_database_names():
     # If static database names are provided as an environment variable
     if database_names_str and database_names_str.strip():
-        logger.debug(f"databases: database_names_str.split(',')")
+        logger.debug(f"databases: {database_names_str.split(',')}")
         return database_names_str.split(',')
     else:
-        # Get list of databases
-        data = exo.list_dbaas_services()
-        if 'dbaas-services' in data:
-            # Extract the names using a list comprehension
-            db_names = [db.get('name') for db in data['dbaas-services']]
-            logger.debug(f"Retrieved dynamic database list: {db_names}")
+        if not database_zone:
+            logger.info("No specific zone provided. Using all available zones.")
+            clients = create_clients()
+            db_names = []
+            for client in clients:
+                data = client.list_dbaas_services()
+                if 'dbaas-services' in data:
+                    # Extract the names using a list comprehension
+                    db_names.extend([db.get('name') for db in data['dbaas-services']])
+            logger.debug(f"Retrieved dynamic database list from all zones: {db_names}")
             return db_names
         else:
-            logger.error(f"Unexpected response format from Exoscale API: {data}")
-            return []
+            # Get list of databases from a specific zone
+            client = Client(api_key, api_secret, zone=database_zone)
+            data = client.list_dbaas_services()
+            if 'dbaas-services' in data:
+                # Extract the names using a list comprehension
+                db_names = [db.get('name') for db in data['dbaas-services']]
+                logger.debug(f"Retrieved dynamic database list: {db_names}")
+                return db_names
+            else:
+                logger.error(f"Unexpected response format from Exoscale API: {data}")
+                return []
+
+def create_clients():
+    zones_info = exo.list_zones()
+    zone_names = [zone.get('name') for zone in zones_info['zones']]
+    clients = []
+
+    for zone_name in zone_names:
+        client = Client(api_key, api_secret, zone=zone_name)
+        clients.append(client)
+
+    logger.debug(f"data: {clients}")
+    return clients
+
 
 def fetch_metrics():
     while True:
