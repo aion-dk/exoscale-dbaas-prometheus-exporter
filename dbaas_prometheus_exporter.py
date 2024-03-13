@@ -12,9 +12,31 @@ SLEEP_INTERVAL = 30
 # Get the log level from the environment variable (default to ERROR if not set)
 log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
 
-# Configure logging
-logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Configure logging to output in JSON format
+class JSONFormatter(logging.Formatter):
+    def format(self, record):
+        log_data = {
+            'timestamp': self.formatTime(record),
+            'level': record.levelname,
+            'message': record.getMessage(),
+            'logger': record.name
+        }
+        return json.dumps(log_data)
+
+# Set the formatter for the logger
+json_formatter = JSONFormatter()
+
+# Create a new logger
+logger = logging.getLogger()
+logger.setLevel(log_level)
+
+# Create a stream handler
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(json_formatter)
+
+# Add the stream handler to the logger
+logger.addHandler(stream_handler)
+
 
 # Set your API keys and secrets as environment variables
 api_key = os.environ.get('exoscale_key')
