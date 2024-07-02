@@ -66,15 +66,15 @@ logger.info(f"Period is set to {metrics_period}.")
 
 # Define Prometheus gauge metrics for each metric with a 'database' label
 dbaas_metrics = {
-    'disk_usage': Gauge('dbaas_disk_usage', 'Disk space usage percentage', ['database']),
-    'load_average': Gauge('dbaas_load_average', 'Load average (5 min)', ['database']),
-    'mem_usage': Gauge('dbaas_memory_usage', 'Memory usage percentage', ['database']),
-    'diskio_writes': Gauge('dbaas_disk_io_writes', 'Disk IOPS (writes)', ['database']),
-    'mem_available': Gauge('dbaas_memory_available', 'Memory available percentage', ['database']),
-    'cpu_usage': Gauge('dbaas_cpu_usage', 'CPU usage percentage', ['database']),
-    'diskio_read': Gauge('dbaas_disk_io_reads', 'Disk IOPS (reads)', ['database']),
-    'net_send': Gauge('dbaas_network_transmit_bytes_per_sec', 'Network transmit (bytes/s)', ['database']),
-    'net_receive': Gauge('dbaas_network_receive_bytes_per_sec', 'Network receive (bytes/s)', ['database']),
+    'disk_usage': Gauge('dbaas_disk_usage', 'Disk space usage percentage', ['database','node']),
+    'load_average': Gauge('dbaas_load_average', 'Load average (5 min)', ['database','node']),
+    'mem_usage': Gauge('dbaas_memory_usage', 'Memory usage percentage', ['database','node']),
+    'diskio_writes': Gauge('dbaas_disk_io_writes', 'Disk IOPS (writes)', ['database','node']),
+    'mem_available': Gauge('dbaas_memory_available', 'Memory available percentage', ['database','node']),
+    'cpu_usage': Gauge('dbaas_cpu_usage', 'CPU usage percentage', ['database','node']),
+    'diskio_read': Gauge('dbaas_disk_io_reads', 'Disk IOPS (reads)', ['database','node']),
+    'net_send': Gauge('dbaas_network_transmit_bytes_per_sec', 'Network transmit (bytes/s)', ['database','node']),
+    'net_receive': Gauge('dbaas_network_receive_bytes_per_sec', 'Network receive (bytes/s)', ['database','node']),
 }
 
 def get_database_names():
@@ -136,9 +136,13 @@ def fetch_metrics():
 
                     # Extract the latest metric data for each metric
                     for metric_name, metric_gauge in dbaas_metrics.items():
-                        latest_value = metrics[metric_name]['data']['rows'][-1][1]
-                        metric_gauge.labels(database=database_name).set(latest_value)
-
+                        rows = metrics[metric_name]['data']['rows']
+                        latest_row = rows[-1]
+                        for index in range(1, len(latest_row)):
+                            latest_value = latest_row[index]
+                            column_label = metrics[metric_name]['data']['cols'][index]['label']
+                            if latest_value is not None:
+                                metric_gauge.labels(database=database_name, node=column_label).set(latest_value)
                     logger.info(f"Metrics for {database_name} have been scraped")
 
                 elif 'message' in response:
