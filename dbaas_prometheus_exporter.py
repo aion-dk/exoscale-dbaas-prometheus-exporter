@@ -70,7 +70,6 @@ dbaas_metrics = {
     'load_average': Gauge('dbaas_load_average', 'Load average (5 min)', ['database','node']),
     'mem_usage': Gauge('dbaas_memory_usage', 'Memory usage percentage', ['database','node']),
     'diskio_writes': Gauge('dbaas_disk_io_writes', 'Disk IOPS (writes)', ['database','node']),
-    'mem_available': Gauge('dbaas_memory_available', 'Memory available percentage', ['database','node']),
     'cpu_usage': Gauge('dbaas_cpu_usage', 'CPU usage percentage', ['database','node']),
     'diskio_read': Gauge('dbaas_disk_io_reads', 'Disk IOPS (reads)', ['database','node']),
     'net_send': Gauge('dbaas_network_transmit_bytes_per_sec', 'Network transmit (bytes/s)', ['database','node']),
