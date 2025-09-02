@@ -63,6 +63,7 @@ if not database_zone:
 exo = Client(api_key, api_secret)
 
 logger.info(f"Period is set to {metrics_period}.")
+db_names = []
 
 # Define Prometheus gauge metrics for each metric with a 'database' label
 dbaas_metrics = {
@@ -78,36 +79,49 @@ dbaas_metrics = {
 }
 
 def get_database_names():
-    # If static database names are provided as an environment variable
-    if database_names_str and database_names_str.strip():
-        logger.debug(f"databases: {database_names_str.split(',')}")
-        return database_names_str.split(',')
-    else:
-        if not database_zone:
-            logger.info("No specific zone provided. Using all available zones.")
-            clients = create_clients()
-            db_names = []
-            for client in clients:
-                data = client.list_dbaas_services()
-                if 'dbaas-services' in data:
-                    # Extract the names using a list comprehension
-                    db_names.extend([db.get('name') for db in data['dbaas-services']])
-            logger.debug(f"Retrieved dynamic database list from all zones: {db_names}")
-            return db_names
+    try:
+        clients_to_query = []
+        if database_zone:
+            logger.info(f"Querying specific zone: {database_zone}")
+            if not api_key or not api_secret:
+                raise ValueError("EXOSCALE_API_KEY and EXOSCALE_API_SECRET must be set.")
+            clients_to_query.append(Client(api_key, api_secret, zone=database_zone))
         else:
-            # Get list of databases from a specific zone
-            client = Client(api_key, api_secret, zone=database_zone)
+            logger.info("No specific zone provided. Querying all available zones.")
+            clients_to_query = create_clients()
+        
+        for client in clients_to_query:
+            logger.debug(f"Fetching services for zone: {client.zone}")
             data = client.list_dbaas_services()
-            if 'dbaas-services' in data:
-                # Extract the names using a list comprehension
-                db_names = [db.get('name') for db in data['dbaas-services']]
-                logger.debug(f"Retrieved dynamic database list: {db_names}")
-                return db_names
-            else:
-                logger.error(f"Unexpected response format from Exoscale API: {data}")
-                return []
+
+            services = data.get('dbaas-service')
+            if not isinstance(services, list):
+                error_msg = f"API response for zone '{client.zone}' is malformed. Expected 'dbaas-services' to be a list, but got: {type(services)}. Full response: {data}"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+
+            for db in services:
+                if not isinstance(db, dict):
+                    logger.warning(f"Skipping malformed item in service list: {db}")
+                    continue
+
+                db_name = db.get('name')
+                if not db_name:
+                    logger.warning(f"Skipping database service with no name: {db}")
+                    continue
+                
+                db_names.append(db_name)
+
+        logger.debug(f"Retrieved dynamic database list: {db_names}")
+        return db_names
+    except Exception as e:
+        error_msg = f"Failed to get database names due to an unhandled exception: {e}"
+        logger.error(error_msg, exc_info=True)
+        raise RuntimeError(error_msg) from e
 
 def create_clients():
+    if not api_key or not api_secret:
+        raise ValueError("API key and secret must be set to create clients.")
     zones_info = exo.list_zones()
     zone_names = [zone.get('name') for zone in zones_info['zones']]
     clients = []
