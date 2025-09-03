@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning].
 - Json logging by @av-lasse in [#10](https://github.com/aion-dk/exoscale-dbaas-prometheus-exporter/pull/10)
 - added node to metric, so it can get information from master and replicas by @av-lasse in [#11](https://github.com/aion-dk/exoscale-dbaas-prometheus-exporter/pull/11)
 
+### Fixed
+
+- bumped version of Exoscale API to 0.14.0
+
 ## [1.1.1] - 2023-12-13
 
 ### Added

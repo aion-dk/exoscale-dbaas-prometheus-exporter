@@ -3,7 +3,6 @@ import os
 import logging
 import json
 from exoscale.api.v2 import Client
-from threading import Thread
 from prometheus_client import start_http_server, Gauge
 
 # Constants
@@ -36,7 +35,6 @@ stream_handler.setFormatter(json_formatter)
 
 # Add the stream handler to the logger
 logger.addHandler(stream_handler)
-
 
 # Set your API keys and secrets as environment variables
 api_key = os.environ.get('exoscale_key')
@@ -80,6 +78,7 @@ dbaas_metrics = {
 
 def get_database_names():
     try:
+        db_names_local = []
         clients_to_query = []
         if database_zone:
             logger.info(f"Querying specific zone: {database_zone}")
@@ -94,7 +93,7 @@ def get_database_names():
             logger.debug(f"Fetching services for zone: {client}")
             data = client.list_dbaas_services()
 
-            services = data.get('dbaas-service')
+            services = data.get('dbaas-services')
             if not isinstance(services, list):
                 error_msg = f"API response for zone '{client}' is malformed. Expected 'dbaas-services' to be a list, but got: {type(services)}. Full response: {data}"
                 logger.error(error_msg)
@@ -106,14 +105,15 @@ def get_database_names():
                     continue
 
                 db_name = db.get('name')
+                logger.debug(f"Retrieved db name: {db_name}")
                 if not db_name:
                     logger.warning(f"Skipping database service with no name: {db}")
                     continue
                 
-                db_names.append(db_name)
+                db_names_local.append(db_name)
 
-        logger.debug(f"Retrieved dynamic database list: {db_names}")
-        return db_names
+        logger.debug(f"Retrieved dynamic database list: {db_names_local}")
+        return db_names_local
     except Exception as e:
         error_msg = f"Failed to get database names due to an unhandled exception: {e}"
         logger.error(error_msg, exc_info=True)
@@ -137,10 +137,13 @@ def create_clients():
 def fetch_metrics():
     while True:
         try:
-            # Get the latest database names
             current_database_names = get_database_names()
+        except RuntimeError:
+            logger.critical("Fatal error retrieving database list. Exporter is shutting down.")
+            exit(1)
 
-            for database_name in current_database_names:
+        for database_name in current_database_names:
+            try:
                 response = exo.get_dbaas_service_metrics(
                     service_name=database_name,
                     period=metrics_period
@@ -148,7 +151,6 @@ def fetch_metrics():
                 if 'metrics' in response:
                     metrics = response['metrics']
 
-                    # Extract the latest metric data for each metric
                     for metric_name, metric_gauge in dbaas_metrics.items():
                         rows = metrics[metric_name]['data']['rows']
                         latest_row = rows[-1]
@@ -165,15 +167,12 @@ def fetch_metrics():
                 else:
                     logger.error(f"Failed to fetch metrics for {database_name}: unknown error")
 
-        except Exception as e:
-            logger.error(f"An error occurred: {str(e)}")
+            except Exception as e:
+                logger.error(f"An error occurred while fetching metrics for '{database_name}': {str(e)}")
 
-        # Sleep for some time before fetching metrics again
         time.sleep(SLEEP_INTERVAL)
 
 if __name__ == '__main__':
-    # Start an HTTP server to expose the metrics
     start_http_server(8080)
 
-    # Fetch and update metrics
     fetch_metrics()
