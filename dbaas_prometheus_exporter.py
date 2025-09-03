@@ -91,12 +91,12 @@ def get_database_names():
             clients_to_query = create_clients()
         
         for client in clients_to_query:
-            logger.debug(f"Fetching services for zone: {client.zone}")
+            logger.debug(f"Fetching services for zone: {client}")
             data = client.list_dbaas_services()
 
             services = data.get('dbaas-service')
             if not isinstance(services, list):
-                error_msg = f"API response for zone '{client.zone}' is malformed. Expected 'dbaas-services' to be a list, but got: {type(services)}. Full response: {data}"
+                error_msg = f"API response for zone '{client}' is malformed. Expected 'dbaas-services' to be a list, but got: {type(services)}. Full response: {data}"
                 logger.error(error_msg)
                 raise RuntimeError(error_msg)
 
@@ -124,13 +124,13 @@ def create_clients():
         raise ValueError("API key and secret must be set to create clients.")
     zones_info = exo.list_zones()
     zone_names = [zone.get('name') for zone in zones_info['zones']]
+    
     clients = []
 
     for zone_name in zone_names:
         client = Client(api_key, api_secret, zone=zone_name)
         clients.append(client)
 
-    logger.debug(f"data: {clients}")
     return clients
 
 
